@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useGame } from "@/lib/GameContext";
 import { COURSES } from "@/lib/real-data";
 import {
@@ -18,11 +18,33 @@ export default function CoursesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCourse, setSelectedCourse] = useState<CourseType | null>(null);
   const [currentLessonIdx, setCurrentLessonIdx] = useState(0);
+  const [completedLessonsByCourse, setCompletedLessonsByCourse] = useState<Record<string, number[]>>({});
   const [difficultyFilter, setDifficultyFilter] = useState<string>("All");
-  const videoRef = useRef<HTMLIFrameElement>(null);
-
+  const [thumbVariantByCourse, setThumbVariantByCourse] = useState<Record<string, "hqdefault" | "mqdefault" | "default">>({});
   const enrolledCourseIds = state.enrolledCourses || [];
   const completedCourseIds = state.completedCourses || [];
+
+  const fallbackVideoByCourse: Record<string, string> = {
+    "active-listening": "7wUCyjiyXdg",
+    "public-speaking": "HAnw168huqA",
+    "body-language": "KZI97O8R9ZE",
+    "persuasion": "R2ft5ZpaZP4",
+    "conflict-resolution": "jUF9sY4HvxY",
+    "networking": "f_N3PGvnVKg",
+    "emotional-intelligence": "erfgEHHfFkU",
+    "storytelling": "e8nMhb9Z7ko",
+    "feedback-delivery": "wtl5UrrgU8c",
+    "written-communication": "1XctnF7C74s",
+    "leadership-communication": "qp0HIF3SfI4",
+    "intercultural-communication": "qg73vGHUWbA",
+    "digital-etiquette": "Y_-s4pxFpnU",
+  };
+
+  const isValidYouTubeId = (id: string) => typeof id === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(id);
+  const getSafeVideoId = (courseId: string, candidateId: string) => {
+    if (isValidYouTubeId(candidateId)) return candidateId;
+    return fallbackVideoByCourse[courseId] || "HAnw168huqA";
+  };
 
   const filteredCourses = COURSES.filter((course) => {
     const matchesFilter =
@@ -53,7 +75,20 @@ export default function CoursesPage() {
   const handleStartCourse = (course: CourseType) => {
     handleEnroll(course.id);
     setSelectedCourse(course);
-    setCurrentLessonIdx(0);
+    const completedLessons = completedLessonsByCourse[course.id] || [];
+    const nextIdx = completedLessons.length > 0 ? Math.min(completedLessons.length, course.lessons.length - 1) : 0;
+    setCurrentLessonIdx(nextIdx);
+  };
+
+  const markLessonComplete = (courseId: string, lessonIdx: number) => {
+    setCompletedLessonsByCourse((prev) => {
+      const existing = prev[courseId] || [];
+      if (existing.includes(lessonIdx)) return prev;
+      return {
+        ...prev,
+        [courseId]: [...existing, lessonIdx].sort((a, b) => a - b),
+      };
+    });
   };
 
   const getDifficultyColor = (diff: string) => {
@@ -77,7 +112,11 @@ export default function CoursesPage() {
   // === VIDEO PLAYER VIEW ===
   if (selectedCourse) {
     const currentLesson = selectedCourse.lessons[currentLessonIdx];
-    const progress = Math.round(((currentLessonIdx + 1) / selectedCourse.lessons.length) * 100);
+    const currentVideoId = getSafeVideoId(selectedCourse.id, currentLesson.videoId);
+    const completedLessons = completedLessonsByCourse[selectedCourse.id] || [];
+    const progress = Math.round((completedLessons.length / selectedCourse.lessons.length) * 100);
+    const currentLessonDone = completedLessons.includes(currentLessonIdx);
+    const allLessonsDone = completedLessons.length >= selectedCourse.lessons.length;
 
     return (
       <div className="pb-6 slide-up">
@@ -120,7 +159,7 @@ export default function CoursesPage() {
             <div className="bg-black rounded-3xl overflow-hidden card-shadow relative aspect-video">
               <iframe
                 key={`${selectedCourse.id}-${currentLessonIdx}`}
-                src={`https://www.youtube.com/embed/${currentLesson.videoId}?rel=0&modestbranding=1&autoplay=1`}
+                src={`https://www.youtube.com/embed/${currentVideoId}?rel=0&modestbranding=1&autoplay=1`}
                 title={currentLesson.title}
                 className="absolute inset-0 w-full h-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -152,25 +191,45 @@ export default function CoursesPage() {
                   Previous
                 </button>
                 {currentLessonIdx < selectedCourse.lessons.length - 1 ? (
-                  <button
-                    onClick={() => setCurrentLessonIdx(currentLessonIdx + 1)}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors flex items-center gap-2"
-                  >
-                    Next Lesson
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                  <>
+                    <button
+                      onClick={() => markLessonComplete(selectedCourse.id, currentLessonIdx)}
+                      disabled={currentLessonDone}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {currentLessonDone ? "Lesson Completed" : "Mark Lesson Complete"}
+                    </button>
+                    <button
+                      onClick={() => setCurrentLessonIdx(currentLessonIdx + 1)}
+                      disabled={!currentLessonDone}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      Next Lesson
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </>
                 ) : (
-                  <button
-                    onClick={() => {
-                      handleCompleteCourse(selectedCourse.id);
-                      setSelectedCourse(null);
-                    }}
-                    className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-medium hover:from-emerald-600 hover:to-emerald-700 transition-all flex items-center gap-2 neon-glow"
-                    style={{ '--tw-shadow-color': 'rgba(16,185,129,0.4)' } as React.CSSProperties}
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    Complete Course (+200 XP)
-                  </button>
+                  <>
+                    <button
+                      onClick={() => markLessonComplete(selectedCourse.id, currentLessonIdx)}
+                      disabled={currentLessonDone}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {currentLessonDone ? "Lesson Completed" : "Mark Lesson Complete"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleCompleteCourse(selectedCourse.id);
+                        setSelectedCourse(null);
+                      }}
+                      disabled={!allLessonsDone}
+                      className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-medium hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 neon-glow"
+                      style={{ '--tw-shadow-color': 'rgba(16,185,129,0.4)' } as React.CSSProperties}
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Complete Course (+200 XP)
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -188,20 +247,21 @@ export default function CoursesPage() {
                   <button
                     key={idx}
                     onClick={() => setCurrentLessonIdx(idx)}
+                    disabled={idx > completedLessons.length}
                     className={`w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-all group ${
                       idx === currentLessonIdx
                         ? "bg-primary-50 border-2 border-primary-200"
                         : "hover:bg-neutral-50 border-2 border-transparent"
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
                       idx === currentLessonIdx
                         ? "bg-primary-500 text-white"
-                        : idx < currentLessonIdx
+                        : completedLessons.includes(idx)
                         ? "bg-emerald-100 text-emerald-600"
                         : "bg-neutral-100 text-neutral-400 group-hover:bg-neutral-200"
                     }`}>
-                      {idx < currentLessonIdx ? (
+                      {completedLessons.includes(idx) ? (
                         <CheckCircle2 className="w-4 h-4" />
                       ) : idx === currentLessonIdx ? (
                         <Play className="w-4 h-4" />
@@ -355,11 +415,19 @@ export default function CoursesPage() {
                   onClick={() => handleStartCourse(course)}
                 >
                   <Image
-                    src={`https://img.youtube.com/vi/${course.videoId}/maxresdefault.jpg`}
+                    src={`https://img.youtube.com/vi/${getSafeVideoId(course.id, course.videoId)}/${thumbVariantByCourse[course.id] || "hqdefault"}.jpg`}
                     alt={course.title}
                     fill
                     className="object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
                     unoptimized
+                    onError={() => {
+                      setThumbVariantByCourse((prev) => {
+                        const current = prev[course.id] || "hqdefault";
+                        if (current === "hqdefault") return { ...prev, [course.id]: "mqdefault" };
+                        if (current === "mqdefault") return { ...prev, [course.id]: "default" };
+                        return prev;
+                      });
+                    }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                   {/* Play Button Overlay */}

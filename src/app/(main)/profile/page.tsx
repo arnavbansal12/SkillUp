@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useGame } from "@/lib/GameContext";
 import { COURSES, MISSIONS, ACHIEVEMENTS } from "@/lib/real-data";
+import { getAchievementProgress } from "@/lib/achievements";
 import {
   Settings, Edit3, BookOpen, Target, Trophy, Flame,
   Star, TrendingUp, Calendar, Clock, X, Save, Camera,
@@ -31,7 +32,13 @@ export default function ProfilePage() {
 
   const completedCourses = (state.completedCourses || []).length;
   const completedMissions = (state.completedMissions || []).length;
-  const unlockedAchievements = ACHIEVEMENTS.filter(a => a.progress >= a.total).length;
+  const achievements = getAchievementProgress({
+    xp: state.xp,
+    streak: state.streak,
+    completedCourses: state.completedCourses || [],
+    completedMissions: state.completedMissions || [],
+  });
+  const unlockedAchievements = achievements.filter((a) => a.unlocked).length;
 
   const handleSaveProfile = () => {
     dispatch({ type: "SET_USERNAME", payload: editForm.name });
@@ -64,7 +71,7 @@ export default function ProfilePage() {
   }
   if (state.unlockedAchievements.length > 0) {
     const lastAchId = state.unlockedAchievements[state.unlockedAchievements.length - 1];
-    const lastAch = ACHIEVEMENTS.find(a => a.id === lastAchId);
+    const lastAch = achievements.find(a => a.id === lastAchId);
     if (lastAch) recentActivity.push({ action: "Earned Achievement", detail: lastAch.name, time: "2 days ago", icon: Trophy, color: "bg-yellow-100 text-yellow-600" });
   }
   recentActivity.push({ action: "Streak Extended", detail: `${state.streak} days and counting!`, time: "3 days ago", icon: Flame, color: "bg-orange-100 text-orange-600" });
@@ -204,7 +211,7 @@ export default function ProfilePage() {
               Earned Achievements
             </h2>
             <div className="flex flex-wrap gap-3">
-              {ACHIEVEMENTS.filter(a => a.progress >= a.total).map((a) => (
+              {achievements.filter((a) => a.unlocked).map((a) => (
                 <div key={a.id} className="flex items-center gap-2 bg-gradient-to-r from-yellow-50 to-amber-50 px-4 py-2.5 rounded-2xl border border-yellow-200">
                   <span className="text-xl">{a.icon}</span>
                   <div>
@@ -213,7 +220,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
               ))}
-              {ACHIEVEMENTS.filter(a => a.progress >= a.total).length === 0 && (
+              {achievements.filter((a) => a.unlocked).length === 0 && (
                 <p className="text-sm text-neutral-400">No achievements unlocked yet. Keep learning!</p>
               )}
             </div>

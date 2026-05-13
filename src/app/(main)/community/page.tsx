@@ -31,10 +31,7 @@ export default function CommunityPage() {
   const [showPostBox, setShowPostBox] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    fetchPosts();
-  }, []);
+  const [postError, setPostError] = useState("");
 
   const fetchPosts = async () => {
     try {
@@ -50,6 +47,10 @@ export default function CommunityPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
 
   const handleLike = (postId: string) => {
     setPosts(prev => prev.map(p =>
@@ -70,6 +71,7 @@ export default function CommunityPage() {
     
     try {
       setIsSubmitting(true);
+      setPostError("");
       const res = await fetch("/api/community", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,15 +83,16 @@ export default function CommunityPage() {
         setPosts(prev => [createdPost, ...prev]);
         setNewPost("");
         setShowPostBox(false);
-        alert("Post shared successfully!");
+        await fetchPosts();
       } else {
-        const errorText = await res.text();
-        console.error("Server error:", errorText);
-        alert("Failed to share post. Please try again.");
+        const errorPayload = await res.json().catch(() => null);
+        const errorMessage = errorPayload?.message || "Failed to share post. Please try again.";
+        console.error("Server error:", errorPayload);
+        setPostError(errorMessage);
       }
     } catch (err) {
       console.error("Network error:", err);
-      alert("Something went wrong. Please check your connection.");
+      setPostError("Something went wrong. Please check your connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -177,6 +180,7 @@ export default function CommunityPage() {
                 </button>
               </div>
             </div>
+            {postError && <p className="text-sm text-rose-600 pl-[52px]">{postError}</p>}
           </div>
         )}
       </div>
@@ -234,7 +238,7 @@ export default function CommunityPage() {
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 relative rounded-xl overflow-hidden bg-primary-100 flex items-center justify-center text-primary-600 font-bold">
                   {post.avatar ? (
-                    <Image src={post.avatar} alt={post.author} fill className="object-cover" />
+                    <Image src={post.avatar} alt={post.author} fill className="object-cover" unoptimized />
                   ) : (
                     getInitials(post.author)
                   )}

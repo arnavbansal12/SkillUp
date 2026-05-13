@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useReducer, useEffect } from "react";
+import { getAchievementProgress } from "@/lib/achievements";
 
 interface GameState {
   xp: number;
@@ -186,6 +187,29 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const timeout = setTimeout(syncState, 2000); // Debounce sync
     return () => clearTimeout(timeout);
   }, [state]);
+
+  // Keep unlocked achievements synced to real user progress.
+  useEffect(() => {
+    const computed = getAchievementProgress({
+      xp: state.xp,
+      streak: state.streak,
+      completedCourses: state.completedCourses,
+      completedMissions: state.completedMissions,
+    });
+    const computedUnlockedIds = computed.filter((a) => a.unlocked).map((a) => a.id);
+    const missing = computedUnlockedIds.filter((id) => !state.unlockedAchievements.includes(id));
+    if (missing.length > 0) {
+      for (const id of missing) {
+        dispatch({ type: "UNLOCK_ACHIEVEMENT", payload: id });
+      }
+    }
+  }, [
+    state.xp,
+    state.streak,
+    state.completedCourses,
+    state.completedMissions,
+    state.unlockedAchievements,
+  ]);
 
   return (
     <GameContext.Provider value={{ state, dispatch }}>

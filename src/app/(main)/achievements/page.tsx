@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useGame } from "@/lib/GameContext";
 import { ACHIEVEMENTS } from "@/lib/real-data";
+import { getAchievementProgress } from "@/lib/achievements";
 import {
   Trophy, Lock, CheckCircle2, Star,
   Zap, Search, ShieldCheck
@@ -10,27 +11,36 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function AchievementsPage() {
-  useGame();
+  const { state } = useGame();
   const [filter, setFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const getAchievementStatus = (a: typeof ACHIEVEMENTS[0]) => a.progress >= a.total;
+  const achievements = useMemo(
+    () =>
+      getAchievementProgress({
+        xp: state.xp,
+        streak: state.streak,
+        completedCourses: state.completedCourses,
+        completedMissions: state.completedMissions,
+      }),
+    [state.xp, state.streak, state.completedCourses, state.completedMissions]
+  );
 
   const stats = useMemo(() => {
-    const unlocked = ACHIEVEMENTS.filter(a => getAchievementStatus(a));
+    const unlocked = achievements.filter((a) => a.unlocked);
     return {
       unlockedCount: unlocked.length,
       totalXp: unlocked.reduce((sum, a) => sum + a.xp, 0),
       completionRate: Math.round((unlocked.length / ACHIEVEMENTS.length) * 100),
-      nextMilestone: ACHIEVEMENTS.find(a => !getAchievementStatus(a))
+      nextMilestone: achievements.find((a) => !a.unlocked)
     };
-  }, []);
+  }, [achievements]);
 
-  const filteredAchievements = ACHIEVEMENTS.filter(a => {
+  const filteredAchievements = achievements.filter(a => {
     const matchesFilter = 
       filter === "all" || 
-      (filter === "unlocked" && getAchievementStatus(a)) || 
-      (filter === "locked" && !getAchievementStatus(a));
+      (filter === "unlocked" && a.unlocked) || 
+      (filter === "locked" && !a.unlocked);
     const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           a.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesFilter && matchesSearch;
@@ -143,7 +153,7 @@ export default function AchievementsPage() {
       >
         <AnimatePresence>
           {filteredAchievements.map((achievement) => {
-            const isUnlocked = getAchievementStatus(achievement);
+            const isUnlocked = achievement.unlocked;
             const progressPct = Math.min(100, (achievement.progress / achievement.total) * 100);
 
             return (

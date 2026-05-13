@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { useGame } from "@/lib/GameContext";
 import { COURSES, MISSIONS, ACHIEVEMENTS } from "@/lib/real-data";
+import { getAchievementProgress } from "@/lib/achievements";
 import Link from "next/link";
 import {
   Flame, Star, Zap, Trophy, BookOpen, Target, ChevronRight,
@@ -39,6 +40,7 @@ const itemVariants = {
 
 export default function DashboardPage() {
   const { state } = useGame();
+  const [dashboardThumbVariantByCourse, setDashboardThumbVariantByCourse] = useState<Record<string, "hqdefault" | "mqdefault" | "default">>({});
   const [greeting] = useState(() => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
@@ -48,13 +50,21 @@ export default function DashboardPage() {
 
   const completedCourses = (state.completedCourses || []).length;
   const completedMissions = (state.completedMissions || []).length;
-  const unlockedAchievements = ACHIEVEMENTS.filter(a => a.progress >= a.total).length;
+  const achievements = getAchievementProgress({
+    xp: state.xp,
+    streak: state.streak,
+    completedCourses: state.completedCourses || [],
+    completedMissions: state.completedMissions || [],
+  });
+  const unlockedAchievements = achievements.filter((a) => a.unlocked).length;
   const xpForNextLevel = 1000;
   const xpProgress = state.xp % xpForNextLevel;
   const xpPercent = (xpProgress / xpForNextLevel) * 100;
 
   const recentCourses = COURSES.slice(0, 3);
   const recentMissions = MISSIONS.filter(m => !(state.completedMissions || []).includes(m.id)).slice(0, 3);
+  const isValidYouTubeId = (id: string) => /^[a-zA-Z0-9_-]{11}$/.test(id);
+  const getSafeDashboardVideoId = (candidateId: string) => (isValidYouTubeId(candidateId) ? candidateId : "HAnw168huqA");
 
   return (
     <motion.div 
@@ -229,10 +239,19 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-6 p-4 rounded-3xl hover:bg-neutral-50 transition-all border border-transparent hover:border-neutral-100 group">
                       <div className="w-32 h-20 rounded-2xl overflow-hidden bg-neutral-200 flex-shrink-0 relative">
                         <Image 
-                          src={`https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg`} 
+                          src={`https://img.youtube.com/vi/${getSafeDashboardVideoId(course.videoId)}/${dashboardThumbVariantByCourse[course.id] || "hqdefault"}.jpg`} 
                           alt={course.title}
                           fill
                           className="object-cover group-hover:scale-110 transition-transform duration-700"
+                          unoptimized
+                          onError={() => {
+                            setDashboardThumbVariantByCourse((prev) => {
+                              const current = prev[course.id] || "hqdefault";
+                              if (current === "hqdefault") return { ...prev, [course.id]: "mqdefault" };
+                              if (current === "mqdefault") return { ...prev, [course.id]: "default" };
+                              return prev;
+                            });
+                          }}
                         />
                         {isCompleted && (
                           <div className="absolute inset-0 bg-emerald-500/80 flex items-center justify-center">
@@ -312,8 +331,8 @@ export default function DashboardPage() {
           <motion.div variants={itemVariants} className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-neutral-200/30 border border-neutral-100 h-full">
             <h3 className="text-xl font-black text-neutral-900 tracking-tight mb-8">Achievements</h3>
             <div className="space-y-6">
-              {ACHIEVEMENTS.slice(0, 4).map((achievement) => {
-                const isUnlocked = achievement.progress >= achievement.total;
+              {achievements.slice(0, 4).map((achievement) => {
+                const isUnlocked = achievement.unlocked;
                 const pct = Math.min(100, (achievement.progress / achievement.total) * 100);
                 return (
                   <div key={achievement.id} className="space-y-3">

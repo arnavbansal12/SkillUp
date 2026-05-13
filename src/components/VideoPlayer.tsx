@@ -26,7 +26,7 @@ export default function VideoPlayer({ videoId: initialVideoId, title, autoPlay =
 
   // Using standard YouTube embed URL with improved parameters
   const embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&autoplay=${autoPlay ? 1 : 0}&showinfo=0`;
-  const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 
   return (
     <div className="relative w-full rounded-[2.5rem] overflow-hidden bg-neutral-950 shadow-2xl border border-neutral-800/50 group aspect-video">

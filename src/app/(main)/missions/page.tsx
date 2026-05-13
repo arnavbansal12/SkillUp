@@ -20,6 +20,9 @@ export default function MissionsPage() {
   const [difficultyFilter, setDifficultyFilter] = useState("All");
   const [showCompleted, setShowCompleted] = useState(true);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [claimingMissionIds, setClaimingMissionIds] = useState<string[]>([]);
+  const [checkedStepsByMission, setCheckedStepsByMission] = useState<Record<string, boolean[]>>({});
+  const isValidYouTubeId = (id: string) => /^[a-zA-Z0-9_-]{11}$/.test(id);
 
   const completedMissions = state.completedMissions || [];
 
@@ -36,12 +39,30 @@ export default function MissionsPage() {
   });
 
   const handleComplete = (missionId: string, xpReward: number) => {
-    if (!completedMissions.includes(missionId)) {
-      dispatch({ type: "COMPLETE_MISSION", payload: missionId });
-      dispatch({ type: "ADD_XP", payload: xpReward });
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 3000);
-    }
+    if (completedMissions.includes(missionId) || claimingMissionIds.includes(missionId)) return;
+    setClaimingMissionIds((prev) => [...prev, missionId]);
+    dispatch({ type: "COMPLETE_MISSION", payload: missionId });
+    dispatch({ type: "ADD_XP", payload: xpReward });
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 3000);
+  };
+
+  const getQuestVideoId = (mission: MissionType) => {
+    if (mission.skill === "Listening") return "7wUCyjiyXdg";
+    if (mission.skill === "Speaking") return "HAnw168huqA";
+    if (mission.skill === "Body Language") return "K0pxo-dS9Hc";
+    if (mission.skill === "Networking") return "R_F6F9V6yEw";
+    if (mission.skill === "Negotiation") return "6pY7EjqD3_k";
+    return mission.videoId;
+  };
+
+  const toggleStep = (missionId: string, stepIdx: number, totalSteps: number) => {
+    setCheckedStepsByMission((prev) => {
+      const existing = prev[missionId] || Array.from({ length: totalSteps }, () => false);
+      const next = [...existing];
+      next[stepIdx] = !next[stepIdx];
+      return { ...prev, [missionId]: next };
+    });
   };
 
   const getDifficultyColor = (diff: string) => {
@@ -67,6 +88,11 @@ export default function MissionsPage() {
   // === MISSION DETAIL VIEW ===
   if (selectedMission) {
     const isCompleted = completedMissions.includes(selectedMission.id);
+    const checkedSteps = checkedStepsByMission[selectedMission.id] || Array.from({ length: selectedMission.instructions.length }, () => false);
+    const allStepsChecked = checkedSteps.every(Boolean);
+    const canClaim = allStepsChecked && !isCompleted && !claimingMissionIds.includes(selectedMission.id);
+    const missionVideoId = getQuestVideoId(selectedMission);
+    const safeMissionVideoId = isValidYouTubeId(missionVideoId) ? missionVideoId : "HAnw168huqA";
 
     return (
       <div className="pb-6 slide-up relative">
@@ -117,8 +143,8 @@ export default function MissionsPage() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none z-10 opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
                 <iframe
-                  key={selectedMission.videoId}
-                  src={`https://www.youtube.com/embed/${selectedMission.videoId}?rel=0&modestbranding=1`}
+                  key={safeMissionVideoId}
+                  src={`https://www.youtube.com/embed/${safeMissionVideoId}?rel=0&modestbranding=1&autoplay=1`}
                   title={selectedMission.title}
                   className="absolute inset-0 w-full h-full"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -144,9 +170,16 @@ export default function MissionsPage() {
                     key={idx} 
                     className="flex items-start gap-4 p-4 rounded-2xl hover:bg-neutral-50 border border-transparent hover:border-neutral-100 transition-all group"
                   >
-                    <div className="w-8 h-8 bg-neutral-100 text-neutral-500 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 group-hover:bg-primary-500 group-hover:text-white transition-colors shadow-sm">
-                      {idx + 1}
-                    </div>
+                    <button
+                      onClick={() => toggleStep(selectedMission.id, idx, selectedMission.instructions.length)}
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 transition-colors shadow-sm ${
+                        checkedSteps[idx]
+                          ? "bg-emerald-500 text-white"
+                          : "bg-neutral-100 text-neutral-500 group-hover:bg-primary-500 group-hover:text-white"
+                      }`}
+                    >
+                      {checkedSteps[idx] ? "✓" : idx + 1}
+                    </button>
                     <p className="text-neutral-700 leading-relaxed pt-1 font-medium">{step}</p>
                   </motion.div>
                 ))}
@@ -213,10 +246,15 @@ export default function MissionsPage() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleComplete(selectedMission.id, selectedMission.xpReward)}
+                    disabled={!canClaim}
                     className="w-full py-4 bg-primary-600 text-white rounded-2xl font-black uppercase tracking-wider hover:bg-primary-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-primary-600/20"
                   >
                     <CheckCircle2 className="w-5 h-5" />
-                    Claim Reward
+                    {claimingMissionIds.includes(selectedMission.id)
+                      ? "Claimed"
+                      : allStepsChecked
+                      ? "Claim Reward"
+                      : "Complete All Steps First"}
                   </motion.button>
                 </div>
               )}
