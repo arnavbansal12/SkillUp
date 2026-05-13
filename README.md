@@ -1,4 +1,4 @@
-# SkillForge - Communication Skills Platform
+# SkillUp - Communication Skills Platform
 
 A gamified platform for mastering communication skills through courses, quests, and community learning.
 
